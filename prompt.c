@@ -121,6 +121,7 @@ lval *lval_copy(lval *v);
 void lval_expr_print(lenv *e, lval *v, char open, char close);
 void lval_del(lval *v);
 lval *lval_pop(lval *v, int i);
+
 lval *builtin(lenv *e, lval *a, char *func);
 lval *builtin_op(lenv *e, lval *a, char *op);
 lval *builtin_head(lenv *e, lval *a);
@@ -135,6 +136,12 @@ lval *builtin_div(lenv *e, lval *a);
 lval *builtin_def(lenv *e, lval *a);
 lval *builtin_var(lenv *e, lval *a, char* func);
 lval *builtin_lambda(lenv *e, lval *a);
+lval *builtin_ord(lenv *e, lval *a, char *op);
+lval *builtin_gt(lenv *e, lval *a);
+lval *builtin_lt(lenv *e, lval *a);
+lval *builtin_ge(lenv *e, lval *a);
+lval *builtin_le(lenv *e, lval *a);
+
 lval *lval_join(lenv *e, lval *x, lval *y);
 lval *lval_take(lenv *e, lval *v, int i);
 lval *lval_eval(lenv *e, lval *v);
@@ -241,6 +248,11 @@ void lenv_add_builtins(lenv *e) {
   lenv_add_builtin(e, "-", builtin_sub);
   lenv_add_builtin(e, "*", builtin_mul);
   lenv_add_builtin(e, "/", builtin_div);
+
+  lenv_add_builtin(e, ">", builtin_gt);
+  lenv_add_builtin(e, ">=", builtin_ge);
+  lenv_add_builtin(e, "<", builtin_lt);
+  lenv_add_builtin(e, "<=", builtin_le);
 }
 
 int main(int argc, char **argv) {
@@ -704,13 +716,13 @@ lval *builtin_op(lenv *e, lval *a, char *op) {
     lval *y = lval_pop(a, 0);
 
     if (strcmp(op, "+") == 0) {
-      return lval_num(x->num + y->num);
+     x->num += y->num;
     }
     if (strcmp(op, "-") == 0) {
-      return lval_num(x->num - y->num);
+      x->num -= y->num;
     }
     if (strcmp(op, "*") == 0) {
-      return lval_num(x->num * y->num);
+      x->num *= y->num;
     }
     if (strcmp(op, "/") == 0) {
       if (y->num == 0) {
@@ -725,6 +737,42 @@ lval *builtin_op(lenv *e, lval *a, char *op) {
   }
   lval_del(a);
   return x;
+}
+
+lval *builtin_ord(lenv *e, lval *a, char *op) {
+  LASSERT_ARG_COUNT(a, "ord", 2);
+  LASSERT_TYPE(a, "ord", 0, LVAL_NUM);
+  LASSERT_TYPE(a, "ord", 1, LVAL_NUM);
+
+  int r;
+  if (strcmp(op, ">") == 0) {
+    r = (a->cell[0]->num > a->cell[1]->num);
+  }
+  if (strcmp(op, ">=") == 0) {
+    r = (a->cell[0]->num >= a->cell[1]->num);
+  }
+  if (strcmp(op, "<") == 0) {
+    r = (a->cell[0]->num < a->cell[1]->num);
+  }
+  if (strcmp(op, "<=") == 0) {
+    r = (a->cell[0]->num <= a->cell[1]->num);
+  }
+
+  lval_del(a);
+  return lval_num(r);
+}
+
+lval *builtin_gt(lenv *e, lval *a) {
+  return builtin_ord(e, a, ">");
+}
+lval *builtin_lt(lenv *e, lval *a){
+  return builtin_ord(e, a, "<");
+}
+lval *builtin_ge(lenv *e, lval *a) {
+  return builtin_ord(e, a, ">=");
+}
+lval *builtin_le(lenv *e, lval *a) {
+  return builtin_ord(e, a, "<=");
 }
 
 lval *lval_eval(lenv *e, lval *v) {
@@ -803,6 +851,21 @@ lval *lval_call(lenv *e, lval *f, lval* a) {
     /*     pop the first symbol from the formals */
     lval* sym = lval_pop(f->formals, 0);
 
+    /*     special case to deal with '&' for variable arguments */
+    if (strcmp(sym->sym, "&") == 0) {
+      // ensure '&' is followed by another symbol
+      if (f->formals->count != 1) {
+        lval_del(a);
+        return lval_err("Function format invalid. "
+                        "Symbol '&' not followed by single symbol.");
+      }
+      /*       next formal should be bound to remaining arguments */
+      lval* nsym = lval_pop(f->formals, 0);
+      lenv_put(f->env, nsym, builtin_list(e, a));
+      lval_del(sym); lval_del(nsym);
+      break;
+    }
+
     /*     pop the next argument from the list  */
     lval* val = lval_pop(a, 0);
 
@@ -814,6 +877,28 @@ lval *lval_call(lenv *e, lval *f, lval* a) {
   }
 
   lval_del(a);
+
+  /*   if '&' remains in formal list bind to empty list */
+  if(f->formals->count > 0 &&
+    strcmp(f->formals->cell[0]->sym, "&") == 0) {
+
+    /*     check to ensure that & is not passed invalidly.  */
+    if (f->formals->count != 2) {
+      return lval_err("Function format invalid. "
+                      "Symbol '&' not followed by single symbol.");
+    }
+
+    /*     pop and delete '&' symbol */
+    lval_del(lval_pop(f->formals, 0));
+
+    /*     pop next symbol and create empty list  */
+    lval* sym = lval_pop(f->formals, 0);
+    lval* val = lval_qexpr();
+
+    /*     bind to environment and delete */
+    lenv_put(f->env, sym, val);
+    lval_del(sym); lval_del(val);
+  }
 
   /*   if all formula have been bound evaluate */
   if (f->formals->count == 0) {
