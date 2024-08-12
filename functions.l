@@ -7,3 +7,16 @@ fun {pack f & xs} {f xs}
 
 def {uncurry} pack
 def {curry} unpack
+
+
+
+fun {reverse xs} {
+  if (== xs {}) 
+    {{}} 
+    {join (reverse (tail xs)) (head xs)} 
+} 
+fun {len xs} {
+  if (== xs {}) 
+    {0} 
+    {+ 1 (len (tail xs))}
+  }
