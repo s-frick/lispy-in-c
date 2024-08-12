@@ -1,0 +1,122 @@
+
+; Atoms
+( def {nil} {} )
+( def {true} 1 )
+( def {false} 0 )
+
+; Function definitions
+(def {fun} (\ {f body} { 
+    def (head f) (\ (tail f) body)
+}))
+
+; Unpack list for function
+(fun {unpack f xs} {
+    eval (join (list f) xs)
+})
+
+; Pack list for function
+(fun {pack f & xs} {
+    f xs
+})
+
+; Curried and uncurried calling
+( def {curry} unpack )
+( def {uncurry} pack )
+
+; Reverse the order of a list xs
+; > reverse {1 2 3} 
+; > {3 2 1}
+( fun {reverse xs} { 
+      if (== xs {}) 
+      {{}} 
+      { join (reverse (tail xs)) (head xs) } 
+})
+
+; Get the length of a list xs
+; > len {1 2 3} 
+; > 3
+( fun {len xs} { if (== xs {}) {0} {+ 1 (len (tail xs))} } )
+
+; Return the last element of a list xs
+(fun {last xs} {
+     head (reverse xs)
+})
+
+; perform several things in sequence
+(fun {do & xs} {
+     if (== xs nil)
+       {nil}
+       {last xs}
+})
+
+; Open new scope
+; We can use this in conjunction with do to ensure that variables do not leak out of their scope.
+; example: 
+;   lispy> let {do (= {x} 100) (x)}
+;   100
+;   lispy> x
+;   Error: Unbound Symbol 'x'
+;   lispy>
+(fun {let b} {
+     ((\ {_} b) ())
+})
+
+
+; Logical functions
+(fun {not x} {- 1 x})
+(fun {or x y} {+ x y})
+(fun {and x y} {* x y})
+
+; misc functions
+; get function with flipped arguments
+(fun {flip f a b} {f b a})
+; compose function f g
+(fun {compose f g x} {f (g x)})
+
+; First, second or third item in list
+(fun {fst l} { eval (head l) })
+(fun {snd l} { eval (head (tail l) ) })
+(fun {trd l} { eval (head (tail (tail l)) ) })
+
+; nth item in list
+(fun {nth n l} {
+     if (== n 0)
+         {fst l}
+	 {nth (- n 1) (tail l)}
+})
+
+; last item in list
+(fun {last l} {
+     nth (- (len l) 1) l
+})
+
+; apply a function f to a list l
+(fun {map f l} {
+     if (== l nil)
+         {nil}
+	 {join (list (f (fst l))) (map f (tail l))}
+})
+
+; filter a list with a predicate function f
+(fun {filter f l} {
+     if (== l nil)
+         {nil}
+	 {join (
+	     if (f (fst l))
+	        {head l} 
+		{nil}
+	 ) (filter f (tail l))}
+})
+
+; fold left a list with function f (\ {base current} {...})
+(fun {foldl f base l} {
+     if (== l nil)
+         {base}
+	 {foldl f (f base (fst l)) (tail l)}
+})
+
+; sum over list
+( fun {sum l} {foldl + 0 l} )
+
+; product over list
+( fun {product l} {foldl * 1 l} )

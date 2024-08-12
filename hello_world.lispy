@@ -1,0 +1,18 @@
+( load "prelude.lispy" )
+
+( print "Hello World!\n" )
+
+( print "; not true " )
+( print ( not true ) )
+
+( print "; true or false " )
+( print ( or true false ) )
+
+( print "; true and false " )
+( print ( and true false ) )
+
+( print "; reverse a list {1 2 3 4 5}" )
+( print ( reverse {1 2 3 4 5} ))
+
+( print "; length of list {1 2 3 4 5}" )
+( print ( len {1 2 3 4 5} ))
